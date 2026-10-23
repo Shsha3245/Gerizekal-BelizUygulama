@@ -8,6 +8,7 @@ import StudentModal from './components/StudentModal';
 import ClassModal from './components/ClassModal';
 import PasswordModal from './components/PasswordModal';
 import SupabaseSettingsModal from './components/SupabaseSettingsModal';
+import { getSupabase } from './lib/supabase';
 
 import { 
   getClasses, 
@@ -26,14 +27,35 @@ import {
   Users, 
   CreditCard, 
   ChevronUp, 
-  ChevronDown 
+  ChevronDown,
+  AlertCircle
 } from 'lucide-react';
 
 export default function App() {
-  // Authentication state (Single admin)
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return !!(localStorage.getItem('beliz_auth_token') || sessionStorage.getItem('beliz_auth_token'));
-  });
+  // Authentication state (Supabase Auth). undefined = oturum henüz kontrol edilmedi
+  const [session, setSession] = useState(undefined);
+  const isAuthenticated = !!session;
+
+  useEffect(() => {
+    const supabase = getSupabase();
+    if (!supabase) {
+      setSession(null);
+      return;
+    }
+
+    let isMounted = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (isMounted) setSession(data.session ?? null);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession ?? null);
+    });
+
+    return () => {
+      isMounted = false;
+      listener.subscription.unsubscribe();
+    };
+  }, []);
 
   // Active Tab
   const [activeTab, setActiveTab] = useState('yoklama'); // 'yoklama' | 'belediye' | 'ogrenciler' | 'odeme'
@@ -44,6 +66,8 @@ export default function App() {
   const [students, setStudents] = useState([]);
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   // Modals state
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
@@ -56,19 +80,21 @@ export default function App() {
   const [isPaymentPanelExpanded, setIsPaymentPanelExpanded] = useState(true);
 
   // Load all data
-  const loadData = async () => {
+  const loadData = async (year = selectedYear) => {
     setLoading(true);
+    setErrorMessage('');
     try {
       const [cls, std, pay] = await Promise.all([
         getClasses(),
         getStudents(),
-        getPayments()
+        getPayments(year)
       ]);
       setClasses(cls);
       setStudents(std);
       setPayments(pay);
     } catch (err) {
       console.error('Error loading data:', err);
+      setErrorMessage('Veriler yüklenemedi: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -76,46 +102,65 @@ export default function App() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      loadData();
+      loadData(selectedYear);
     }
-  }, [isAuthenticated]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, selectedYear]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('beliz_auth_token');
-    sessionStorage.removeItem('beliz_auth_token');
-    setIsAuthenticated(false);
+  const handleLogout = async () => {
+    const supabase = getSupabase();
+    if (supabase) await supabase.auth.signOut();
+    setSession(null);
+  };
+
+  const runAction = async (action) => {
+    try {
+      await action();
+    } catch (err) {
+      console.error(err);
+      alert('İşlem başarısız: ' + err.message);
+      return false;
+    }
+    return true;
   };
 
   // Student actions
   const handleSaveStudent = async (studentData) => {
-    if (studentToEdit) {
-      await updateStudent(studentToEdit.id, studentData);
-    } else {
-      await addStudent(studentData);
-    }
+    const ok = await runAction(() => (
+      studentToEdit ? updateStudent(studentToEdit.id, studentData) : addStudent(studentData)
+    ));
+    if (!ok) return;
     setIsStudentModalOpen(false);
     setStudentToEdit(null);
     loadData();
   };
 
   const handleDeleteStudent = async (studentId) => {
-    await deleteStudent(studentId);
+    await runAction(() => deleteStudent(studentId));
     loadData();
   };
 
   // Class actions
   const handleAddClass = async (classData) => {
-    await addClass(classData);
+    await runAction(() => addClass(classData));
     loadData();
   };
 
   const handleDeleteClass = async (classId) => {
-    await deleteClass(classId);
+    await runAction(() => deleteClass(classId));
     loadData();
   };
 
+  if (session === undefined) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-sm font-semibold text-slate-600">
+        Oturum kontrol ediliyor...
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
-    return <LoginModal onLoginSuccess={() => setIsAuthenticated(true)} />;
+    return <LoginModal />;
   }
 
   return (
@@ -187,6 +232,13 @@ export default function App() {
           </button>
         </div>
 
+        {errorMessage && (
+          <div className="flex items-center gap-2 p-3 bg-red-50 text-red-700 border border-red-200 rounded-xl text-sm font-medium">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
         {/* Tab Contents */}
         {loading ? (
           <div className="bg-white rounded-2xl p-16 text-center text-slate-400 border border-slate-200">
@@ -239,7 +291,9 @@ export default function App() {
                 classes={classes}
                 students={students}
                 payments={payments}
-                onRefreshPayments={loadData}
+                onRefreshPayments={() => loadData(selectedYear)}
+                selectedYear={selectedYear}
+                setSelectedYear={setSelectedYear}
                 selectedClassFilter={selectedClassFilter}
                 setSelectedClassFilter={setSelectedClassFilter}
               />
@@ -278,7 +332,9 @@ export default function App() {
                     classes={classes}
                     students={students}
                     payments={payments}
-                    onRefreshPayments={loadData}
+                    onRefreshPayments={() => loadData(selectedYear)}
+                    selectedYear={selectedYear}
+                    setSelectedYear={setSelectedYear}
                     selectedClassFilter={selectedClassFilter}
                     setSelectedClassFilter={setSelectedClassFilter}
                   />
@@ -317,7 +373,7 @@ export default function App() {
       <SupabaseSettingsModal
         isOpen={isSupabaseModalOpen}
         onClose={() => setIsSupabaseModalOpen(false)}
-        onConfigSaved={loadData}
+        onConfigSaved={() => window.location.reload()}
       />
     </div>
   );

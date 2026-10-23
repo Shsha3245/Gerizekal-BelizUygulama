@@ -78,77 +78,9 @@ export default function SupabaseSettingsModal({ isOpen, onClose, onConfigSaved }
     }
   };
 
-  const handleCopySql = () => {
-    // Read schema sql file
-    const sqlScript = `-- 1. Sınıflar Tablosu
-CREATE TABLE IF NOT EXISTS public.classes (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name TEXT NOT NULL,
-    category TEXT NOT NULL CHECK (category IN ('normal', 'belediye')),
-    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
-);
-
--- 2. Öğrenciler Tablosu
-CREATE TABLE IF NOT EXISTS public.students (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name TEXT NOT NULL,
-    class_id UUID REFERENCES public.classes(id) ON DELETE SET NULL,
-    class_name TEXT NOT NULL,
-    phone TEXT,
-    parent_name TEXT,
-    parent_phone TEXT,
-    registered_at DATE DEFAULT CURRENT_DATE,
-    notes TEXT,
-    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
-);
-
--- 3. Yoklama Tablosu
-CREATE TABLE IF NOT EXISTS public.attendance (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    class_id UUID REFERENCES public.classes(id) ON DELETE CASCADE,
-    student_id UUID REFERENCES public.students(id) ON DELETE CASCADE,
-    date DATE NOT NULL,
-    status TEXT NOT NULL CHECK (status IN ('geldi', 'gelmedi', 'izinli')),
-    notes TEXT,
-    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
-    CONSTRAINT unique_student_attendance_date UNIQUE (student_id, date)
-);
-
--- 4. Ödemeler Tablosu
-CREATE TABLE IF NOT EXISTS public.payments (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    student_id UUID REFERENCES public.students(id) ON DELETE CASCADE,
-    month TEXT NOT NULL,
-    year INTEGER NOT NULL,
-    is_paid BOOLEAN DEFAULT FALSE,
-    paid_date TIMESTAMPTZ,
-    amount NUMERIC(10, 2) DEFAULT 0,
-    note TEXT,
-    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
-    CONSTRAINT unique_student_month_payment UNIQUE (student_id, month, year)
-);
-
--- 5. Sistem Ayarları
-CREATE TABLE IF NOT EXISTS public.app_settings (
-    key TEXT PRIMARY KEY,
-    value JSONB NOT NULL,
-    updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
-);
-
--- RLS Politikaları (Anonim anahtara erişim izni)
-ALTER TABLE public.classes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.attendance ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Public classes" ON public.classes FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Public students" ON public.students FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Public attendance" ON public.attendance FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Public payments" ON public.payments FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Public app_settings" ON public.app_settings FOR ALL USING (true) WITH CHECK (true);`;
-
-    navigator.clipboard.writeText(sqlScript);
+  const handleCopySql = async () => {
+    const { default: schemaSql } = await import('../../supabase_schema.sql?raw');
+    navigator.clipboard.writeText(schemaSql);
     setCopiedSql(true);
     setTimeout(() => setCopiedSql(false), 2500);
   };

@@ -1,30 +1,35 @@
 import React, { useState } from 'react';
-import { Lock, ShieldCheck, KeyRound, AlertCircle } from 'lucide-react';
-import { verifyAdminPassword } from '../lib/storage';
+import { Lock, ShieldCheck, KeyRound, AlertCircle, Mail } from 'lucide-react';
+import { getSupabase } from '../lib/supabase';
 
-export default function LoginModal({ onLoginSuccess }) {
+export default function LoginModal() {
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
+  const isSupabaseConfigured = !!getSupabase();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
+    const supabase = getSupabase();
+    if (!supabase) {
+      setError('Supabase yapılandırılmamış. Giriş yapılamaz.');
+      setLoading(false);
+      return;
+    }
+
     try {
-      const isValid = await verifyAdminPassword(password);
-      if (isValid) {
-        if (rememberMe) {
-          localStorage.setItem('beliz_auth_token', 'logged_in_' + Date.now());
-        } else {
-          sessionStorage.setItem('beliz_auth_token', 'logged_in_' + Date.now());
-        }
-        onLoginSuccess();
-      } else {
-        setError('Hatalı şifre! Lütfen tekrar deneyin.');
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password
+      });
+      if (authError) {
+        setError('E-posta veya şifre hatalı. Lütfen tekrar deneyin.');
       }
+      // Başarılı girişte App içindeki onAuthStateChange oturumu günceller
     } catch {
       setError('Giriş yapılırken bir hata oluştu.');
     } finally {
@@ -51,12 +56,43 @@ export default function LoginModal({ onLoginSuccess }) {
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-5">
+          {!isSupabaseConfigured && (
+            <div className="flex items-center gap-2 p-3 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl text-sm font-medium">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>
+                Supabase yapılandırılmamış, giriş yapılamaz. VITE_SUPABASE_URL ve VITE_SUPABASE_ANON_KEY
+                ortam değişkenlerini tanımlayın.
+              </span>
+            </div>
+          )}
+
           {error && (
             <div className="flex items-center gap-2 p-3 bg-red-50 text-red-700 border border-red-200 rounded-xl text-sm font-medium animate-shake">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>
           )}
+
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-2">
+              E-posta
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <Mail className="w-5 h-5" />
+              </div>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="E-posta adresiniz"
+                autoComplete="email"
+                className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-sm font-medium"
+                autoFocus
+              />
+            </div>
+          </div>
 
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-2">
@@ -72,41 +108,20 @@ export default function LoginModal({ onLoginSuccess }) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Şifrenizi girin..."
+                autoComplete="current-password"
                 className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-sm font-medium"
-                autoFocus
               />
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-xs">
-            <label className="flex items-center gap-2 text-slate-600 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
-              />
-              Beni bu cihazda hatırla
-            </label>
-            <span className="text-slate-400">Tek Yetkili</span>
-          </div>
-
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !isSupabaseConfigured}
             className="w-full py-3.5 px-4 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white font-semibold rounded-xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-50 cursor-pointer"
           >
             {loading ? 'Doğrulanıyor...' : 'Giriş Yap'}
           </button>
 
-          {/* Quick Default Note */}
-          <div className="bg-amber-50 border border-amber-200/80 rounded-xl p-3 text-xs text-amber-800">
-            <span className="font-bold">İlk Giriş İçin Varsayılan Şifre:</span>{' '}
-            <code className="bg-amber-100/80 text-amber-900 px-1.5 py-0.5 rounded font-mono font-bold">admin123</code>
-            <p className="mt-1 text-[11px] text-amber-700">
-              Giriş yaptıktan sonra sağ üstteki Ayarlar menüsünden şifrenizi dilediğiniz zaman değiştirebilirsiniz.
-            </p>
-          </div>
         </form>
       </div>
     </div>

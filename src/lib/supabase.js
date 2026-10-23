@@ -35,6 +35,10 @@ export function getSupabase() {
   }
 }
 
+export function isSupabaseConfigured() {
+  return !!getSupabase();
+}
+
 export async function testSupabaseConnection(url, anonKey) {
   try {
     const tempClient = createClient(url, anonKey);
@@ -43,6 +47,10 @@ export async function testSupabaseConnection(url, anonKey) {
       // If table doesn't exist yet, but connection worked:
       if (error.code === '42P01') {
         return { success: true, message: 'Bağlantı başarılı! Ancak tablolar henüz oluşturulmamış (SQL şemasını çalıştırın).' };
+      }
+      // anon rolü artık tabloları okuyamaz; bu, RLS'in doğru çalıştığını gösterir
+      if (error.code === '42501') {
+        return { success: true, message: 'Bağlantı başarılı! Tablolar yalnızca giriş yapmış kullanıcıya açık.' };
       }
       return { success: false, message: error.message || 'Veritabanına bağlanılamadı.' };
     }

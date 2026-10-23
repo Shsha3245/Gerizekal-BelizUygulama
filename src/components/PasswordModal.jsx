@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { Key, X, Check, AlertCircle } from 'lucide-react';
-import { changeAdminPassword, verifyAdminPassword } from '../lib/storage';
+import { getSupabase } from '../lib/supabase';
 
 export default function PasswordModal({ isOpen, onClose }) {
-  const [currentPass, setCurrentPass] = useState('');
   const [newPass, setNewPass] = useState('');
   const [confirmPass, setConfirmPass] = useState('');
   const [error, setError] = useState('');
@@ -15,14 +14,8 @@ export default function PasswordModal({ isOpen, onClose }) {
     e.preventDefault();
     setError('');
 
-    const isValidCurrent = await verifyAdminPassword(currentPass);
-    if (!isValidCurrent) {
-      setError('Mevcut şifreniz yanlış.');
-      return;
-    }
-
-    if (newPass.length < 4) {
-      setError('Yeni şifre en az 4 karakter olmalıdır.');
+    if (newPass.length < 6) {
+      setError('Yeni şifre en az 6 karakter olmalıdır.');
       return;
     }
 
@@ -31,12 +24,22 @@ export default function PasswordModal({ isOpen, onClose }) {
       return;
     }
 
-    await changeAdminPassword(newPass);
+    const supabase = getSupabase();
+    if (!supabase) {
+      setError('Supabase yapılandırılmamış, şifre değiştirilemez.');
+      return;
+    }
+
+    const { error: updateError } = await supabase.auth.updateUser({ password: newPass });
+    if (updateError) {
+      setError('Şifre güncellenemedi: ' + updateError.message);
+      return;
+    }
+
     setSuccess(true);
     setTimeout(() => {
       setSuccess(false);
       onClose();
-      setCurrentPass('');
       setNewPass('');
       setConfirmPass('');
     }, 1500);
@@ -69,18 +72,6 @@ export default function PasswordModal({ isOpen, onClose }) {
               <span>Şifre başarıyla güncellendi!</span>
             </div>
           )}
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Mevcut Şifre</label>
-            <input
-              type="password"
-              required
-              value={currentPass}
-              onChange={(e) => setCurrentPass(e.target.value)}
-              placeholder="Şu anki şifreniz (varsayılan: admin123)"
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">Yeni Şifre</label>

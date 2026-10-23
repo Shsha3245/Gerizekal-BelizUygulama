@@ -52,38 +52,56 @@ CREATE TABLE IF NOT EXISTS public.payments (
     CONSTRAINT unique_student_month_payment UNIQUE (student_id, month, year)
 );
 
--- 5. Sistem Ayarları (Admin Şifresi vb.)
-CREATE TABLE IF NOT EXISTS public.app_settings (
-    key TEXT PRIMARY KEY,
-    value JSONB NOT NULL,
-    updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
-);
+-- Sınıf adı benzersiz olmalı (migrateLocalToSupabase onConflict: 'name' kullanır)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'classes_name_key'
+    ) THEN
+        ALTER TABLE public.classes ADD CONSTRAINT classes_name_key UNIQUE (name);
+    END IF;
+END $$;
+
+-- Eski sürümden kalan, şifre saklayan ayarlar tablosu artık kullanılmıyor
+DROP TABLE IF EXISTS public.app_settings;
 
 -- ==========================================================
 -- ROW LEVEL SECURITY (RLS) POLİTİKALARI
--- Anonim anahtar ile okuma ve yazmaya izin verir
+-- Sadece giriş yapmış (Supabase Auth) kullanıcılar erişebilir.
+-- anon rolünün hiçbir erişimi yoktur.
 -- ==========================================================
 ALTER TABLE public.classes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.attendance ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
 
--- Herkesin (Anon key ile) okuma ve yazabilmesi için açık politikalar
+-- Eski herkese açık politikaları kaldır
 DROP POLICY IF EXISTS "Public access for classes" ON public.classes;
-CREATE POLICY "Public access for classes" ON public.classes FOR ALL USING (true) WITH CHECK (true);
-
 DROP POLICY IF EXISTS "Public access for students" ON public.students;
-CREATE POLICY "Public access for students" ON public.students FOR ALL USING (true) WITH CHECK (true);
-
 DROP POLICY IF EXISTS "Public access for attendance" ON public.attendance;
-CREATE POLICY "Public access for attendance" ON public.attendance FOR ALL USING (true) WITH CHECK (true);
-
 DROP POLICY IF EXISTS "Public access for payments" ON public.payments;
-CREATE POLICY "Public access for payments" ON public.payments FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Public classes" ON public.classes;
+DROP POLICY IF EXISTS "Public students" ON public.students;
+DROP POLICY IF EXISTS "Public attendance" ON public.attendance;
+DROP POLICY IF EXISTS "Public payments" ON public.payments;
 
-DROP POLICY IF EXISTS "Public access for app_settings" ON public.app_settings;
-CREATE POLICY "Public access for app_settings" ON public.app_settings FOR ALL USING (true) WITH CHECK (true);
+REVOKE ALL ON public.classes, public.students, public.attendance, public.payments FROM anon;
+
+DROP POLICY IF EXISTS "Authenticated access for classes" ON public.classes;
+CREATE POLICY "Authenticated access for classes" ON public.classes
+    FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Authenticated access for students" ON public.students;
+CREATE POLICY "Authenticated access for students" ON public.students
+    FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Authenticated access for attendance" ON public.attendance;
+CREATE POLICY "Authenticated access for attendance" ON public.attendance
+    FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Authenticated access for payments" ON public.payments;
+CREATE POLICY "Authenticated access for payments" ON public.payments
+    FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- ==========================================================
 -- BAŞLANGIÇ VERİLERİ (Örnek Sınıflar)
@@ -95,4 +113,4 @@ INSERT INTO public.classes (name, category) VALUES
     ('(G) Sınıf 1', 'belediye'),
     ('(G) Sınıf 2', 'belediye'),
     ('(İl) Sınıf 1', 'belediye')
-ON CONFLICT DO NOTHING;
+ON CONFLICT (name) DO NOTHING;
