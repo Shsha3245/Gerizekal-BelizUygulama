@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { Lock, ShieldCheck, KeyRound, AlertCircle } from 'lucide-react';
-import { verifyAdminPassword } from '../lib/storage';
+import { Lock, ShieldCheck, KeyRound, Mail, AlertCircle } from 'lucide-react';
+import { signIn } from '../lib/auth';
 
 export default function LoginModal({ onLoginSuccess }) {
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -14,19 +14,15 @@ export default function LoginModal({ onLoginSuccess }) {
     setLoading(true);
 
     try {
-      const isValid = await verifyAdminPassword(password);
-      if (isValid) {
-        if (rememberMe) {
-          localStorage.setItem('beliz_auth_token', 'logged_in_' + Date.now());
-        } else {
-          sessionStorage.setItem('beliz_auth_token', 'logged_in_' + Date.now());
-        }
-        onLoginSuccess();
+      await signIn(email.trim(), password);
+      onLoginSuccess();
+    } catch (err) {
+      const msg = String(err?.message || '');
+      if (/invalid login credentials/i.test(msg)) {
+        setError('E-posta veya şifre hatalı! Lütfen tekrar deneyin.');
       } else {
-        setError('Hatalı şifre! Lütfen tekrar deneyin.');
+        setError('Giriş yapılırken bir hata oluştu. İnternet bağlantınızı kontrol edin.');
       }
-    } catch {
-      setError('Giriş yapılırken bir hata oluştu.');
     } finally {
       setLoading(false);
     }
@@ -60,6 +56,27 @@ export default function LoginModal({ onLoginSuccess }) {
 
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-2">
+              E-posta
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <Mail className="w-5 h-5" />
+              </div>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="E-posta adresiniz..."
+                autoComplete="username"
+                className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-sm font-medium"
+                autoFocus
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-2">
               Yönetici Şifresi
             </label>
             <div className="relative">
@@ -72,23 +89,10 @@ export default function LoginModal({ onLoginSuccess }) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Şifrenizi girin..."
+                autoComplete="current-password"
                 className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-sm font-medium"
-                autoFocus
               />
             </div>
-          </div>
-
-          <div className="flex items-center justify-between text-xs">
-            <label className="flex items-center gap-2 text-slate-600 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
-              />
-              Beni bu cihazda hatırla
-            </label>
-            <span className="text-slate-400">Tek Yetkili</span>
           </div>
 
           <button
@@ -99,14 +103,6 @@ export default function LoginModal({ onLoginSuccess }) {
             {loading ? 'Doğrulanıyor...' : 'Giriş Yap'}
           </button>
 
-          {/* Quick Default Note */}
-          <div className="bg-amber-50 border border-amber-200/80 rounded-xl p-3 text-xs text-amber-800">
-            <span className="font-bold">İlk Giriş İçin Varsayılan Şifre:</span>{' '}
-            <code className="bg-amber-100/80 text-amber-900 px-1.5 py-0.5 rounded font-mono font-bold">admin123</code>
-            <p className="mt-1 text-[11px] text-amber-700">
-              Giriş yaptıktan sonra sağ üstteki Ayarlar menüsünden şifrenizi dilediğiniz zaman değiştirebilirsiniz.
-            </p>
-          </div>
         </form>
       </div>
     </div>

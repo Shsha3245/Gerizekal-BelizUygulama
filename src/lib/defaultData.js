@@ -1,12 +1,12 @@
 // Varsayılan Başlangıç Verileri (Çiziminizdeki sınıflar ve örnek öğrenciler)
 
 export const DEFAULT_CLASSES = [
-  { id: 'c1', name: '13.00 Sınıfı', category: 'normal' },
-  { id: 'c2', name: '14.30 Sınıfı', category: 'normal' },
-  { id: 'c3', name: '16.00 Sınıfı', category: 'normal' },
-  { id: 'c4', name: '(G) Sınıf 1', category: 'belediye' },
-  { id: 'c5', name: '(G) Sınıf 2', category: 'belediye' },
-  { id: 'c6', name: '(İl) Sınıf 1', category: 'belediye' },
+  { id: 'c1', name: '13.00 Sınıfı', category: 'normal', monthly_fee: 1500 },
+  { id: 'c2', name: '14.30 Sınıfı', category: 'normal', monthly_fee: 1500 },
+  { id: 'c3', name: '16.00 Sınıfı', category: 'normal', monthly_fee: 1500 },
+  { id: 'c4', name: '(G) Sınıf 1', category: 'belediye', monthly_fee: 1500 },
+  { id: 'c5', name: '(G) Sınıf 2', category: 'belediye', monthly_fee: 1500 },
+  { id: 'c6', name: '(İl) Sınıf 1', category: 'belediye', monthly_fee: 1500 },
 ];
 
 export const DEFAULT_STUDENTS = [

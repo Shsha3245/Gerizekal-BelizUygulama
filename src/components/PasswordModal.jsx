@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Key, X, Check, AlertCircle } from 'lucide-react';
-import { changeAdminPassword, verifyAdminPassword } from '../lib/storage';
+import { changePassword } from '../lib/auth';
 
 export default function PasswordModal({ isOpen, onClose }) {
   const [currentPass, setCurrentPass] = useState('');
@@ -15,14 +15,8 @@ export default function PasswordModal({ isOpen, onClose }) {
     e.preventDefault();
     setError('');
 
-    const isValidCurrent = await verifyAdminPassword(currentPass);
-    if (!isValidCurrent) {
-      setError('Mevcut şifreniz yanlış.');
-      return;
-    }
-
-    if (newPass.length < 4) {
-      setError('Yeni şifre en az 4 karakter olmalıdır.');
+    if (newPass.length < 8) {
+      setError('Yeni şifre en az 8 karakter olmalıdır.');
       return;
     }
 
@@ -31,7 +25,12 @@ export default function PasswordModal({ isOpen, onClose }) {
       return;
     }
 
-    await changeAdminPassword(newPass);
+    try {
+      await changePassword(currentPass, newPass);
+    } catch (err) {
+      setError(err?.message || 'Şifre güncellenemedi.');
+      return;
+    }
     setSuccess(true);
     setTimeout(() => {
       setSuccess(false);
@@ -77,7 +76,7 @@ export default function PasswordModal({ isOpen, onClose }) {
               required
               value={currentPass}
               onChange={(e) => setCurrentPass(e.target.value)}
-              placeholder="Şu anki şifreniz (varsayılan: admin123)"
+              placeholder="Şu anki şifreniz"
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>

@@ -21,6 +21,11 @@ export function saveSupabaseConfig(url, anonKey) {
 
 let _client = null;
 
+export function isSupabaseConfigured() {
+  const { url, anonKey } = getStoredSupabaseConfig();
+  return !!(url && anonKey);
+}
+
 export function getSupabase() {
   if (_client) return _client;
   const { url, anonKey } = getStoredSupabaseConfig();

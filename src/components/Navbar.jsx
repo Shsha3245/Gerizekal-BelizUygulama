@@ -18,7 +18,8 @@ export default function Navbar({
   onOpenClassModal, 
   onOpenPasswordModal,
   studentCount = 0,
-  classCount = 0
+  classCount = 0,
+  showAccountActions = true
 }) {
   const isSupabaseActive = !!getSupabase();
 
@@ -91,6 +92,7 @@ export default function Navbar({
                 <FolderPlus className="w-4 h-4" />
               </button>
 
+              {showAccountActions && (
               <button
                 onClick={onOpenPasswordModal}
                 className="p-2 text-slate-600 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
@@ -98,6 +100,7 @@ export default function Navbar({
               >
                 <Key className="w-4 h-4" />
               </button>
+              )}
 
               <button
                 onClick={onOpenSettings}
@@ -107,6 +110,7 @@ export default function Navbar({
                 <Database className="w-4 h-4" />
               </button>
 
+              {showAccountActions && (
               <button
                 onClick={onLogout}
                 className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors ml-1 cursor-pointer"
@@ -114,6 +118,7 @@ export default function Navbar({
               >
                 <LogOut className="w-4 h-4" />
               </button>
+              )}
             </div>
           </div>
         </div>

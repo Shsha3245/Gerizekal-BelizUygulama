@@ -64,6 +64,7 @@ export default function AttendanceView({
         setAttendanceMap(map);
       } catch (err) {
         console.error('Error loading attendance:', err);
+        if (isMounted) alert(err.message || 'Yoklama yüklenemedi.');
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -76,7 +77,13 @@ export default function AttendanceView({
   // Load history
   const loadHistory = async () => {
     if (!selectedClassId) return;
-    const records = await getAttendance(selectedClassId);
+    let records;
+    try {
+      records = await getAttendance(selectedClassId);
+    } catch (err) {
+      alert(err.message || 'Geçmiş yoklamalar yüklenemedi.');
+      return;
+    }
     // group by date
     const byDate = {};
     records.forEach(r => {
@@ -140,7 +147,7 @@ export default function AttendanceView({
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
       console.error('Error saving attendance:', err);
-      alert('Yoklama kaydedilirken hata oluştu.');
+      alert(err.message || 'Yoklama kaydedilirken hata oluştu.');
     } finally {
       setLoading(false);
     }
