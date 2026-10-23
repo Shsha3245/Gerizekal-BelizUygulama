@@ -131,3 +131,5 @@ export const DEFAULT_PAYMENTS = [
   { id: 'p11', student_id: 's6', month: 'Ekim', year: 2025, is_paid: true, paid_date: '2025-10-03', amount: 1000, note: '' },
   { id: 'p12', student_id: 's7', month: 'Eylül', year: 2025, is_paid: true, paid_date: '2025-09-05', amount: 1000, note: '' },
 ];
+
+export const DEFAULT_PAYMENT_AMOUNT = 1500;

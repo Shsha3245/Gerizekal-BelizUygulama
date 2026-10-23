@@ -13,7 +13,7 @@ import {
   ArrowUpDown
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { MONTHS } from '../lib/defaultData';
+import { MONTHS, DEFAULT_PAYMENT_AMOUNT } from '../lib/defaultData';
 import { togglePaymentStatus } from '../lib/storage';
 
 export default function PaymentsView({ 
@@ -22,9 +22,14 @@ export default function PaymentsView({
   payments, 
   onRefreshPayments,
   selectedClassFilter,
-  setSelectedClassFilter 
+  setSelectedClassFilter,
+  selectedYear,
+  setSelectedYear
 }) {
-  const [selectedYear, setSelectedYear] = useState(2025);
+  const currentYear = new Date().getFullYear();
+  const yearOptions = [];
+  for (let y = currentYear - 2; y <= currentYear + 1; y++) yearOptions.push(y);
+  if (!yearOptions.includes(selectedYear)) yearOptions.push(selectedYear);
   const [searchQuery, setSearchQuery] = useState('');
   const [activePaymentModal, setActivePaymentModal] = useState(null); // for editing amount & note
 
@@ -59,11 +64,15 @@ export default function PaymentsView({
       }
     }
 
-    await togglePaymentStatus(student.id, month, selectedYear, nextState, {
-      amount: current?.amount || 1500,
-      note: current?.note || '',
-      paid_date: nextState ? new Date().toISOString().split('T')[0] : null
-    });
+    try {
+      await togglePaymentStatus(student.id, month, selectedYear, nextState, {
+        amount: current?.amount || DEFAULT_PAYMENT_AMOUNT,
+        note: current?.note || '',
+        paid_date: nextState ? new Date().toISOString().split('T')[0] : null
+      });
+    } catch (err) {
+      alert('Ödeme kaydedilemedi: ' + err.message);
+    }
 
     onRefreshPayments();
   };
@@ -73,17 +82,21 @@ export default function PaymentsView({
     e.preventDefault();
     if (!activePaymentModal) return;
 
-    await togglePaymentStatus(
-      activePaymentModal.student.id,
-      activePaymentModal.month,
-      selectedYear,
-      activePaymentModal.is_paid,
-      {
-        amount: Number(activePaymentModal.amount) || 0,
-        note: activePaymentModal.note || '',
-        paid_date: activePaymentModal.paid_date || new Date().toISOString().split('T')[0]
-      }
-    );
+    try {
+      await togglePaymentStatus(
+        activePaymentModal.student.id,
+        activePaymentModal.month,
+        selectedYear,
+        activePaymentModal.is_paid,
+        {
+          amount: Number(activePaymentModal.amount) || 0,
+          note: activePaymentModal.note || '',
+          paid_date: activePaymentModal.paid_date || new Date().toISOString().split('T')[0]
+        }
+      );
+    } catch (err) {
+      alert('Ödeme kaydedilemedi: ' + err.message);
+    }
 
     setActivePaymentModal(null);
     onRefreshPayments();
@@ -174,9 +187,9 @@ export default function PaymentsView({
               onChange={(e) => setSelectedYear(Number(e.target.value))}
               className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
             >
-              <option value={2024}>2024 - 2025 Dönemi</option>
-              <option value={2025}>2025 - 2026 Dönemi</option>
-              <option value={2026}>2026 - 2027 Dönemi</option>
+              {yearOptions.map(y => (
+                <option key={y} value={y}>{y} Yılı</option>
+              ))}
             </select>
           </div>
 
@@ -259,7 +272,7 @@ export default function PaymentsView({
                                     student,
                                     month,
                                     is_paid: isPaid,
-                                    amount: payment?.amount ?? 1500,
+                                    amount: payment?.amount ?? DEFAULT_PAYMENT_AMOUNT,
                                     note: payment?.note ?? '',
                                     paid_date: payment?.paid_date ?? new Date().toISOString().split('T')[0]
                                   });
@@ -376,7 +389,7 @@ export default function PaymentsView({
                   type="number"
                   value={activePaymentModal.amount}
                   onChange={(e) => setActivePaymentModal(prev => ({ ...prev, amount: e.target.value }))}
-                  placeholder="1500"
+                  placeholder={String(DEFAULT_PAYMENT_AMOUNT)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
