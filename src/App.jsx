@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Navbar from './components/Navbar';
 import LoginModal from './components/LoginModal';
 import AttendanceView from './components/AttendanceView';
@@ -12,6 +12,7 @@ import SupabaseSettingsModal from './components/SupabaseSettingsModal';
 import { 
   getClasses, 
   addClass, 
+  updateClassFee,
   deleteClass, 
   getStudents, 
   addStudent, 
@@ -19,6 +20,8 @@ import {
   deleteStudent, 
   getPayments 
 } from './lib/storage';
+import { isSupabaseConfigured } from './lib/supabase';
+import { getCurrentSession, onAuthChange, signOut } from './lib/auth';
 
 import { 
   ClipboardCheck, 
@@ -26,14 +29,46 @@ import {
   Users, 
   CreditCard, 
   ChevronUp, 
-  ChevronDown 
+  ChevronDown,
+  AlertCircle,
+  X
 } from 'lucide-react';
 
 export default function App() {
-  // Authentication state (Single admin)
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return !!(localStorage.getItem('beliz_auth_token') || sessionStorage.getItem('beliz_auth_token'));
-  });
+  // Authentication state: Supabase Auth oturumu. Supabase yapılandırılmamışsa yerel mod (giriş yok).
+  const [configVersion, setConfigVersion] = useState(0);
+  const isLocalMode = !isSupabaseConfigured();
+  const [session, setSession] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const isAuthenticated = isLocalMode || !!session;
+
+  // Eski sürümden kalan güvensiz istemci tarafı giriş belirteçlerini temizle
+  useEffect(() => {
+    localStorage.removeItem('beliz_auth_token');
+    sessionStorage.removeItem('beliz_auth_token');
+    localStorage.removeItem('beliz_admin_pass_v1');
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    setSession(null);
+    setAuthChecked(false);
+    getCurrentSession()
+      .then((sess) => {
+        if (active) setSession(sess);
+      })
+      .catch((err) => console.error('Session error:', err))
+      .finally(() => {
+        if (active) setAuthChecked(true);
+      });
+    const unsubscribe = onAuthChange((sess) => {
+      if (active) setSession(sess);
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [configVersion]);
 
   // Active Tab
   const [activeTab, setActiveTab] = useState('yoklama'); // 'yoklama' | 'belediye' | 'ogrenciler' | 'odeme'
@@ -44,6 +79,12 @@ export default function App() {
   const [students, setStudents] = useState([]);
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  // Seçili yıl: ödeme verisi için tek doğru kaynak
+  const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
+  const [paymentsYear, setPaymentsYear] = useState(null);
+  const paymentsRequestRef = useRef(0);
 
   // Modals state
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
@@ -55,20 +96,36 @@ export default function App() {
   // Bottom Ödeme quick panel toggle (from notebook sketch: "Ödeme -> Bastın Açıldı")
   const [isPaymentPanelExpanded, setIsPaymentPanelExpanded] = useState(true);
 
-  // Load all data
+  const reportError = (message) => {
+    setErrorMessage(message || 'Beklenmeyen bir hata oluştu.');
+  };
+
+  // Load payments for the selected year (stale responses are ignored)
+  const loadPayments = async () => {
+    const requestId = ++paymentsRequestRef.current;
+    const year = selectedYear;
+    try {
+      const pay = await getPayments(year);
+      if (requestId !== paymentsRequestRef.current) return;
+      setPayments(pay);
+      setPaymentsYear(year);
+    } catch (err) {
+      if (requestId !== paymentsRequestRef.current) return;
+      console.error('Error loading payments:', err);
+      reportError(err.message);
+    }
+  };
+
+  // Load classes & students
   const loadData = async () => {
     setLoading(true);
     try {
-      const [cls, std, pay] = await Promise.all([
-        getClasses(),
-        getStudents(),
-        getPayments()
-      ]);
+      const [cls, std] = await Promise.all([getClasses(), getStudents()]);
       setClasses(cls);
       setStudents(std);
-      setPayments(pay);
     } catch (err) {
       console.error('Error loading data:', err);
+      reportError(err.message);
     } finally {
       setLoading(false);
     }
@@ -78,20 +135,34 @@ export default function App() {
     if (isAuthenticated) {
       loadData();
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, configVersion]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('beliz_auth_token');
-    sessionStorage.removeItem('beliz_auth_token');
-    setIsAuthenticated(false);
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadPayments();
+    }
+  }, [isAuthenticated, configVersion, selectedYear]);
+
+  const handleLogout = async () => {
+    await signOut();
+    setSession(null);
+    setClasses([]);
+    setStudents([]);
+    setPayments([]);
+    setPaymentsYear(null);
   };
 
   // Student actions
   const handleSaveStudent = async (studentData) => {
-    if (studentToEdit) {
-      await updateStudent(studentToEdit.id, studentData);
-    } else {
-      await addStudent(studentData);
+    try {
+      if (studentToEdit) {
+        await updateStudent(studentToEdit.id, studentData);
+      } else {
+        await addStudent(studentData);
+      }
+    } catch (err) {
+      reportError(err.message);
+      return;
     }
     setIsStudentModalOpen(false);
     setStudentToEdit(null);
@@ -99,23 +170,56 @@ export default function App() {
   };
 
   const handleDeleteStudent = async (studentId) => {
-    await deleteStudent(studentId);
+    try {
+      await deleteStudent(studentId);
+    } catch (err) {
+      reportError(err.message);
+      return;
+    }
     loadData();
   };
 
   // Class actions
   const handleAddClass = async (classData) => {
-    await addClass(classData);
+    try {
+      await addClass(classData);
+    } catch (err) {
+      reportError(err.message);
+      return;
+    }
+    loadData();
+  };
+
+  const handleUpdateClassFee = async (classId, fee) => {
+    try {
+      await updateClassFee(classId, fee);
+    } catch (err) {
+      reportError(err.message);
+      return;
+    }
     loadData();
   };
 
   const handleDeleteClass = async (classId) => {
-    await deleteClass(classId);
+    try {
+      await deleteClass(classId);
+    } catch (err) {
+      reportError(err.message);
+      return;
+    }
     loadData();
   };
 
+  if (!isLocalMode && !authChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-100 text-sm font-semibold text-slate-600">
+        Oturum kontrol ediliyor...
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
-    return <LoginModal onLoginSuccess={() => setIsAuthenticated(true)} />;
+    return <LoginModal onLoginSuccess={() => {}} />;
   }
 
   return (
@@ -123,12 +227,23 @@ export default function App() {
       {/* Top Navbar */}
       <Navbar
         onLogout={handleLogout}
+        showAccountActions={!isLocalMode}
         onOpenSettings={() => setIsSupabaseModalOpen(true)}
         onOpenClassModal={() => setIsClassModalOpen(true)}
         onOpenPasswordModal={() => setIsPasswordModalOpen(true)}
         studentCount={students.length}
         classCount={classes.length}
       />
+
+      {errorMessage && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] w-[calc(100%-2rem)] max-w-xl flex items-start gap-2 p-3 bg-red-50 text-red-700 border border-red-300 rounded-xl text-xs font-semibold shadow-lg">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span className="flex-1">{errorMessage}</span>
+          <button onClick={() => setErrorMessage('')} className="cursor-pointer" title="Kapat">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full space-y-6">
@@ -239,7 +354,11 @@ export default function App() {
                 classes={classes}
                 students={students}
                 payments={payments}
-                onRefreshPayments={loadData}
+                selectedYear={selectedYear}
+                setSelectedYear={setSelectedYear}
+                paymentsLoading={paymentsYear !== selectedYear}
+                onRefreshPayments={loadPayments}
+                onError={reportError}
                 selectedClassFilter={selectedClassFilter}
                 setSelectedClassFilter={setSelectedClassFilter}
               />
@@ -278,7 +397,11 @@ export default function App() {
                     classes={classes}
                     students={students}
                     payments={payments}
-                    onRefreshPayments={loadData}
+                    selectedYear={selectedYear}
+                    setSelectedYear={setSelectedYear}
+                    paymentsLoading={paymentsYear !== selectedYear}
+                    onRefreshPayments={loadPayments}
+                    onError={reportError}
                     selectedClassFilter={selectedClassFilter}
                     setSelectedClassFilter={setSelectedClassFilter}
                   />
@@ -307,6 +430,7 @@ export default function App() {
         classes={classes}
         onAddClass={handleAddClass}
         onDeleteClass={handleDeleteClass}
+        onUpdateClassFee={handleUpdateClassFee}
       />
 
       <PasswordModal
@@ -317,7 +441,7 @@ export default function App() {
       <SupabaseSettingsModal
         isOpen={isSupabaseModalOpen}
         onClose={() => setIsSupabaseModalOpen(false)}
-        onConfigSaved={loadData}
+        onConfigSaved={() => setConfigVersion(v => v + 1)}
       />
     </div>
   );

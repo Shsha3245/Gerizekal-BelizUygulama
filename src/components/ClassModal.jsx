@@ -1,17 +1,19 @@
 import React, { useState } from 'react';
 import { FolderPlus, Trash2, X, PlusCircle, Layers } from 'lucide-react';
 
-export default function ClassModal({ isOpen, onClose, classes, onAddClass, onDeleteClass }) {
+export default function ClassModal({ isOpen, onClose, classes, onAddClass, onDeleteClass, onUpdateClassFee }) {
   const [name, setName] = useState('');
   const [category, setCategory] = useState('normal'); // 'normal' or 'belediye'
+  const [fee, setFee] = useState('');
 
   if (!isOpen) return null;
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!name.trim()) return;
-    onAddClass({ name: name.trim(), category });
+    onAddClass({ name: name.trim(), category, monthly_fee: Number(fee) || 0 });
     setName('');
+    setFee('');
   };
 
   const normalList = classes.filter(c => c.category === 'normal');
@@ -58,6 +60,16 @@ export default function ClassModal({ isOpen, onClose, classes, onAddClass, onDel
               </select>
             </div>
 
+            <input
+              type="number"
+              min="0"
+              step="any"
+              value={fee}
+              onChange={(e) => setFee(e.target.value)}
+              placeholder="Kişi başı aylık ücret (₺)"
+              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+
             <button
               type="submit"
               className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-sm transition-all cursor-pointer"
@@ -76,7 +88,24 @@ export default function ClassModal({ isOpen, onClose, classes, onAddClass, onDel
               <div className="space-y-1.5 max-h-36 overflow-y-auto">
                 {normalList.map(c => (
                   <div key={c.id} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-100 text-xs font-semibold text-slate-800">
-                    <span>{c.name}</span>
+                    <span className="flex-1">{c.name}</span>
+                    <label className="flex items-center gap-1 mr-2 font-medium text-slate-500">
+                      ₺
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        defaultValue={c.monthly_fee ?? 0}
+                        key={`${c.id}-${c.monthly_fee ?? 0}`}
+                        onBlur={(e) => {
+                          if (Number(e.target.value) !== Number(c.monthly_fee ?? 0)) {
+                            onUpdateClassFee(c.id, e.target.value);
+                          }
+                        }}
+                        className="w-20 px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        title="Kişi başı aylık ücret"
+                      />
+                    </label>
                     <button
                       onClick={() => {
                         if (confirm(`"${c.name}" sınıfını silmek istediğinize emin misiniz?`)) {
@@ -101,7 +130,24 @@ export default function ClassModal({ isOpen, onClose, classes, onAddClass, onDel
               <div className="space-y-1.5 max-h-36 overflow-y-auto">
                 {belediyeList.map(c => (
                   <div key={c.id} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-100 text-xs font-semibold text-slate-800">
-                    <span>{c.name}</span>
+                    <span className="flex-1">{c.name}</span>
+                    <label className="flex items-center gap-1 mr-2 font-medium text-slate-500">
+                      ₺
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        defaultValue={c.monthly_fee ?? 0}
+                        key={`${c.id}-${c.monthly_fee ?? 0}`}
+                        onBlur={(e) => {
+                          if (Number(e.target.value) !== Number(c.monthly_fee ?? 0)) {
+                            onUpdateClassFee(c.id, e.target.value);
+                          }
+                        }}
+                        className="w-20 px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        title="Kişi başı aylık ücret"
+                      />
+                    </label>
                     <button
                       onClick={() => {
                         if (confirm(`"${c.name}" sınıfını silmek istediğinize emin misiniz?`)) {

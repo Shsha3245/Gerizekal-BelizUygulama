@@ -1,16 +1,63 @@
-# React + Vite
+# BELİZ - Dans Okulu Yönetim Paneli
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Sınıf, öğrenci, yoklama ve aylık ödeme takibi için tek yöneticili bir web uygulaması (React + Vite + Supabase).
 
-Currently, two official plugins are available:
+## Gereksinimler
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Node.js 20+ ve npm
+- Bir [Supabase](https://supabase.com) projesi (ücretsiz plan yeterli)
+- (Yayın için) Bir [Vercel](https://vercel.com) hesabı
 
-## React Compiler
+## Yerelde çalıştırma
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+npm install
+cp .env.example .env   # değerleri doldurun
+npm run dev
+```
 
-## Expanding the Oxlint configuration
+Supabase bilgileri girilmezse uygulama **yerel modda** (sadece o tarayıcının localStorage'ı, giriş yok, demo amaçlı) çalışır.
+Supabase yapılandırıldığında yerel kayda **asla** düşülmez; bir işlem başarısız olursa ekranda hata mesajı gösterilir.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+## Supabase kurulumu
+
+1. Supabase'de yeni proje oluşturun.
+2. **SQL Editor** içinde `supabase_schema.sql` dosyasının tamamını çalıştırın. Dosya tekrar çalıştırılabilir (idempotent): tabloları, `classes.monthly_fee` kolonunu, `classes.name` benzersiz indeksini, RLS politikalarını ve başlangıç sınıflarını oluşturur; tekrar çalıştırınca sınıflar çoğalmaz.
+3. **Authentication → Sign In / Providers** bölümünde **"Allow new users to sign up"** seçeneğini **kapatın**.
+4. **Authentication → Users → Add user** ile yönetici kullanıcıyı (e-posta + güçlü şifre, "Auto Confirm User" açık) oluşturun.
+5. **Project Settings → API** sayfasından `Project URL` ve `anon public` anahtarını alın.
+
+### Ortam değişkenleri
+
+| Değişken | Açıklama |
+| --- | --- |
+| `VITE_SUPABASE_URL` | Supabase proje URL'si |
+| `VITE_SUPABASE_ANON_KEY` | Supabase `anon` (public) anahtarı |
+
+Asla `service_role` anahtarını frontend'e koymayın.
+
+### Giriş modeli
+
+Yönetici girişi Supabase Auth (e-posta + şifre) ile yapılır. Tüm tablolarda RLS açıktır ve politikalar yalnızca `authenticated` role izin verir; anonim anahtar ile veri okunamaz/yazılamaz. Şifre değiştirme Supabase Auth üzerinden yapılır. Eski sürümdeki `app_settings.admin_password` kaydı şema çalıştırılınca silinir.
+
+## Yayına alma (Vercel)
+
+1. Repoyu Vercel'e **Import** edin (Framework: Vite; build: `npm run build`; output: `dist`).
+2. **Settings → Environment Variables** altında `VITE_SUPABASE_URL` ve `VITE_SUPABASE_ANON_KEY` değerlerini girin.
+3. Deploy edin ve yönetici e-posta/şifresi ile giriş yaparak test edin.
+
+## Güvenlik notları
+
+- Kayıt (sign-up) kapalı olmalı; aksi halde herkes hesap açıp verilere erişebilir.
+- Öğrenci/veli telefon bilgileri kişisel veridir (KVKK); repoyu private tutun ve yönetici şifresini paylaşmayın.
+- `.env` dosyasını commit etmeyin.
+- Şifre veritabanında veya localStorage'da tutulmaz.
+
+## Manuel doğrulama listesi
+
+- [ ] Çıkış yapılmış durumda anon anahtar ile tablolar okunamıyor (boş/izin hatası)
+- [ ] Doğru e-posta/şifre ile giriş çalışıyor, yanlışta hata gösteriliyor, giriş ekranında varsayılan şifre yok
+- [ ] Ödeme çizelgesi güncel yılla açılıyor; yıl değiştirince tablo o yılın verisini gösteriyor
+- [ ] Sınıfa ücret girilince, öğrencinin ödemesi tıklanınca tutar sınıf ücreti oluyor; sağ tık ile tutar değiştirilebiliyor
+- [ ] Supabase bağlantısı koparken yapılan kayıt hata mesajı gösteriyor ve yerelde saklanmıyor
+- [ ] `supabase_schema.sql` ikinci kez çalıştırılınca sınıflar çoğalmıyor

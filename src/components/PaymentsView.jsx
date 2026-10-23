@@ -20,13 +20,22 @@ export default function PaymentsView({
   classes, 
   students, 
   payments, 
+  selectedYear,
+  setSelectedYear,
   onRefreshPayments,
+  onError,
+  paymentsLoading = false,
   selectedClassFilter,
   setSelectedClassFilter 
 }) {
-  const [selectedYear, setSelectedYear] = useState(2025);
   const [searchQuery, setSearchQuery] = useState('');
   const [activePaymentModal, setActivePaymentModal] = useState(null); // for editing amount & note
+
+  const currentYear = new Date().getFullYear();
+  const yearOptions = [];
+  for (let y = Math.min(currentYear - 1, selectedYear); y <= Math.max(currentYear + 1, selectedYear); y++) {
+    yearOptions.push(y);
+  }
 
   // Filter students based on class selection and search query
   const filteredStudents = students.filter(student => {
@@ -34,6 +43,11 @@ export default function PaymentsView({
     const matchesSearch = student.name.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesClass && matchesSearch;
   });
+
+  const getClassFee = (student) => {
+    const cls = classes.find(c => c.id === student.class_id);
+    return Number(cls?.monthly_fee) || 0;
+  };
 
   // Helper to check payment status for a student and month
   const getPayment = (studentId, month) => {
@@ -59,11 +73,16 @@ export default function PaymentsView({
       }
     }
 
-    await togglePaymentStatus(student.id, month, selectedYear, nextState, {
-      amount: current?.amount || 1500,
-      note: current?.note || '',
-      paid_date: nextState ? new Date().toISOString().split('T')[0] : null
-    });
+    try {
+      await togglePaymentStatus(student.id, month, selectedYear, nextState, {
+        amount: Number(current?.amount) || getClassFee(student),
+        note: current?.note || '',
+        paid_date: nextState ? new Date().toISOString().split('T')[0] : null
+      });
+    } catch (err) {
+      onError?.(err.message);
+      return;
+    }
 
     onRefreshPayments();
   };
@@ -73,17 +92,22 @@ export default function PaymentsView({
     e.preventDefault();
     if (!activePaymentModal) return;
 
-    await togglePaymentStatus(
-      activePaymentModal.student.id,
-      activePaymentModal.month,
-      selectedYear,
-      activePaymentModal.is_paid,
-      {
-        amount: Number(activePaymentModal.amount) || 0,
-        note: activePaymentModal.note || '',
-        paid_date: activePaymentModal.paid_date || new Date().toISOString().split('T')[0]
-      }
-    );
+    try {
+      await togglePaymentStatus(
+        activePaymentModal.student.id,
+        activePaymentModal.month,
+        selectedYear,
+        activePaymentModal.is_paid,
+        {
+          amount: Number(activePaymentModal.amount) || 0,
+          note: activePaymentModal.note || '',
+          paid_date: activePaymentModal.paid_date || new Date().toISOString().split('T')[0]
+        }
+      );
+    } catch (err) {
+      onError?.(err.message);
+      return;
+    }
 
     setActivePaymentModal(null);
     onRefreshPayments();
@@ -174,9 +198,9 @@ export default function PaymentsView({
               onChange={(e) => setSelectedYear(Number(e.target.value))}
               className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
             >
-              <option value={2024}>2024 - 2025 Dönemi</option>
-              <option value={2025}>2025 - 2026 Dönemi</option>
-              <option value={2026}>2026 - 2027 Dönemi</option>
+              {yearOptions.map(y => (
+                <option key={y} value={y}>{y} - {y + 1} Dönemi</option>
+              ))}
             </select>
           </div>
 
@@ -196,7 +220,7 @@ export default function PaymentsView({
 
       {/* Main Payment Table Matrix */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className={`overflow-x-auto transition-opacity ${paymentsLoading ? 'opacity-40 pointer-events-none' : ''}`}>
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
@@ -259,7 +283,7 @@ export default function PaymentsView({
                                     student,
                                     month,
                                     is_paid: isPaid,
-                                    amount: payment?.amount ?? 1500,
+                                    amount: Number(payment?.amount) || getClassFee(student),
                                     note: payment?.note ?? '',
                                     paid_date: payment?.paid_date ?? new Date().toISOString().split('T')[0]
                                   });
@@ -376,7 +400,7 @@ export default function PaymentsView({
                   type="number"
                   value={activePaymentModal.amount}
                   onChange={(e) => setActivePaymentModal(prev => ({ ...prev, amount: e.target.value }))}
-                  placeholder="1500"
+                  placeholder={String(getClassFee(activePaymentModal.student))}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
